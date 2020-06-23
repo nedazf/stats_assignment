@@ -1,0 +1,315 @@
+---
+title: "Assignment 4"
+author: "Name 1, Name 2, Name 3"
+date: "2019-11-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Instructions
+
+Fill in your computations and answers to the assignment questions in this
+RMarkdown document. When you are finished, click the "Knit" button on RStudio
+to render an HTML document. You can then use your browser or tool of choice
+to convert the HTML document to a PDF file.
+
+This assignment is to be handed in through canvas on Monday Oct 7 at 11:00pm.
+(Note that this due date is different from the due date given on the canvas
+Admin page.) This is a group assignment.
+You must join a group on canvas even if you want to work alone. Please upload one PDF file
+with your solutions per group. 
+
+
+## Question 1 (Chapter 6, #8, parts (a)-(e), 10 marks)
+
+
+(a) Use the rnorm() function to generate a predictor X of length n = 100, as well as a noise vector ε of length n = 100. (1 mark)
+(Note: You should set your random seed, for reproducibility.)
+
+```{r}
+set.seed(1)
+n<-100
+X <- rnorm(n)
+noise <- rnorm(n)
+```
+(b) Generate a response vector Y of length n = 100 according to the model
+Y = β0 +β1X +β2X2 +β3X3 +ε, where β0, β1, β2, and β3 are constants of your choice.
+(1 mark)
+
+```{r}
+Y <- 5 + 2*X + 6*X^2 - 7*X^3 + noise
+```
+(c) Use the regsubsets() function to perform best subset selection in order to choose the best model containing the predictors X,X2,...,X10. What is the best model obtained according to Cp, BIC, and adjusted R2? Show some plots to provide evidence for your answer, and report the coefficients of the best model ob- tained. Note you will need to use the data.frame() function to create a single data set containing both X and Y .(3 marks)
+For the "best model obtained", you should 
+use one that is parsimonious and close to
+the consensus best according tht the three
+selection criteria.
+
+
+You don't **have** to create a data frame. 
+`regsubsets()` can take a design matrix and
+response vector, just like `lm.fit()` and 
+`glmnet()`. If you do decide to create a data frame,
+the following hint may be of use:
+```{r}
+library(leaps)
+pmax <- 10
+Xmat <- matrix(NA,nrow=n,ncol=pmax)
+for(i in 1:pmax) {
+  Xmat[,i] <- X^i
+}
+colnames(Xmat) <- paste0("X.",1:pmax)
+dat <- data.frame(Y,Xmat)
+```
+```{r}
+bestfit=regsubsets(Y~.,data=dat,nvmax=10)
+reg.summary=summary(bestfit)
+
+par(mfrow=c(1,3))
+plot(reg.summary$cp,type="l",xlab="Number of variables",ylab="cp")
+#plot(bestfit,scale="Cp")
+
+plot(reg.summary$bic,type="l",xlab="Number of variables",ylab="bic")
+
+plot(reg.summary$adjr2,type="l",xlab="Number of variables",ylab="r2")
+
+
+which.min(reg.summary$cp)
+which.min(reg.summary$bic)
+which.max(reg.summary$adjr2)
+coef(bestfit,3)
+```
+Solution: the best model has four terms if we use cp, hasthree terms if we use BIC and four term if we use adjusted R^2. if we consider parsimony I'll select three otherwisefour is more consensus.
+(d) ??????????? Repeat (c), using forward stepwise selection and also using backwards stepwise selection. How does your answer compare to the results in (c)? (2 marks) 
+
+```{r}
+par(mfrow=c(1,3))
+forwardfit=regsubsets(Y~.,data=dat,nvmax=10,method="forward")
+forwardsum=summary(forwardfit)
+
+plot(forwardsum$cp,type="l",xlab="Number of variables",ylab="cp")
+
+plot(forwardsum$bic,type="l",xlab="Number of variables",ylab="bic")
+
+plot(forwardsum$adjr2,type="l",xlab="Number of variables",ylab="r2")
+```
+```{r}
+which.min(forwardsum$cp)
+which.min(forwardsum$bic)
+which.max(forwardsum$adjr2)
+```
+solution: forward selection reccomends 4 or 3 term. 3 seems to better in terms of being parsimonious.and again 4 is more consensus. 
+```{r}
+coef(forwardfit,4)
+```
+```{r}
+par(mfrow=c(1,3))
+backfit=regsubsets(Y~.,data=dat,nvmax=10,method="backward")
+backwardsum=summary(backfit)
+
+
+plot(backwardsum$cp,type="l",xlab="Number of variables",ylab="cp")
+
+
+plot(backwardsum$bic,type="l",xlab="Number of variables",ylab="bic")
+
+plot(backwardsum$adjr2,type="l",xlab="Number of variables",ylab="r2")
+
+```
+```{r}
+which.min(backwardsum$cp)
+which.min(backwardsum$bic)
+which.max(backwardsum$adjr2)
+coef(backfit,4)
+
+
+```
+solution: backward selection reccomends 4 or 3 terms again. 3 seems to better in terms of being parsimonious and again 4 is more consensus.
+
+
+
+(e) Now fit a lasso model to the simulated data, again using X,X2, . . . , X 10 as predictors. Use cross-validation to select the optimal value of λ. Create plots of the cross-validation error as a function of λ. Report the resulting coefficient estimates, and discuss the results obtained.(3 marks)
+
+```{r}
+library(glmnet)
+lambdas <- 10^{seq(from=-2,to=5,length=100)}
+cv.lafit <- cv.glmnet(Xmat,Y,alpha=1,lambda=lambdas) 
+plot(cv.lafit)
+la.best.lam <- cv.lafit$lambda.1se
+la.best.lam
+la.best <- glmnet(Xmat,Y,alpha=1,lambda=la.best.lam)
+coef(la.best)
+```
+solution: the optimal lambda by the 1-SE criterion seems to be 0.05994843 and  the number of non zero coefficients is 5.??
+
+## Question 2 (Ch6, #9, 12 marks)
+
+(a) Split the data set into a training set and a test set.(0 marks)
+To make everyone's results comparable, please
+select your test set with the following.
+(Note that we scale all columns, including the response.)
+
+```{r}
+library(ISLR)
+data(College)
+library(dplyr)
+College <- mutate(College,Private = as.numeric(Private=="Yes"))
+College <- data.frame(lapply(College,scale))
+dim(College) # 777 rows, use 111 as test
+set.seed(1)
+testset <- sample(1:777,size=111)
+College.test <- College[testset,]
+College.train <- College[-testset,]
+```
+
+(b) Fit a linear model using least squares on the training set, and
+report the test error obtained.(2 marks)
+
+```{r}
+lmfit=lm(Apps~.,data=College.train)
+pred <- predict(lmfit,newdata=College.test)
+error=mean((College.test$Apps-pred)^2)
+error
+``` 
+(c) Fit a ridge regression model on the training set, with λ chosen
+by cross-validation. Report the test error obtained.
+(2 marks)
+
+```{r}
+library(glmnet)
+x <- model.matrix(Apps ~ ., data=College.train)
+y<-College.train$Apps
+cv.ridge=cv.glmnet(x,y,alpha=0)
+bestlambda=cv.ridge$lambda.1se
+model=glmnet(x,y,alpha=0,lambda =bestlambda)
+test= model.matrix(Apps ~ ., data=College.test)
+pred <- predict(model,newx=test)
+mean((College.test$Apps - pred)^2)
+``` 
+
+(d) Fit a lasso model on the training set, with λ chosen by cross- validation. Report the test error obtained, along with the num-
+ber of non-zero coefficient estimates. (2 marks)
+
+
+```{r}
+cv.lasso=cv.glmnet(x,y,alpha=1)
+bestlambda=cv.lasso$lambda.1se
+model=glmnet(x,y,alpha=1,lambda =bestlambda)
+pred <- predict(model,newx=test)
+mean((College.test$Apps - pred)^2)
+coef(cv.lasso)
+
+``` 
+
+
+
+solution:the test error is 0.05399455 the number of non zero coefficients is 3.
+(e) Fit a PCR model on the training set, with M chosen by cross- validation. Report the test error obtained, along with the value of M selected by cross-validation.(2 marks)
+
+```{r}
+library(pls)
+set.seed(12)
+pcrmodel =pcr(Apps ~ ., data=College.train,validation="CV")
+validationplot(pcrmodel)
+```
+```{r}
+M = 17
+pred =predict(pcrmodel,newdata=College.test,ncomp=M)
+mean((College.test$Apps - pred)^2)
+```
+solution:the best number of coefficients is 17.??
+
+
+(f) Fit a PLS model on the training set, with M chosen by cross- validation. Report the test error obtained, along with the value of M selected by cross-validation.(2 marks)
+
+```{r}
+set.seed(123)
+plsrmodel =plsr(Apps ~ ., data=College.train,validation="CV")
+validationplot(plsrmodel)
+```
+
+```{r}
+M = 7
+pred =predict(plsrmodel,newdata=College.test,ncomp=M)
+mean((College.test$Apps - pred)^2)
+```
+solution: the best number of components is  7 and the test MSE is 0.06092691.
+
+(g) Comment on the results obtained. How accurately can we pre- dict the number of college applications received? Is there much difference among the test errors resulting from these five ap- proaches?(2 marks)
+
+solution:
+the test error for least squares is:0.05985039
+the test error fot ridge regression is:0.05997512
+the test error for for lasso is:0.05399455
+the test error for PCR is:0.05985039
+the test error for PLS is :0.06092691
+the Apps variable variance in the test data is ???????
+
+## Question 3 (Ch7, #6, 8 marks)
+ In this exercise, you will further analyze the Wage data set considered throughout this chapter.
+??
+
+(a)  Perform polynomial regression to predict wage using age. Use cross-validation to select the optimal degree d for the polyno- mial. What degree was chosen, and how does this compare to the results of hypothesis testing using ANOVA? Make a plot of the resulting polynomial fit to the data.(5 marks)
+
+
+```{r}
+source("week9Util.R")
+library(ISLR) 
+data(Wage)
+library(ggplot2)
+k<-10; nDf <- 10; seed <- 1; cvErrs <- rep(NA,nDf)
+
+cvDat <- matrix(NA,nrow=nDf,ncol=4)
+
+for(df in 1:nDf) {
+res <- cv.lm(wage ~ poly(age,df),Wage,k,seed)
+merr <- res$meanErr; serr <- res$sdErr
+cvDat[df,] <- c(df,merr,merr-serr,merr+serr)
+}
+colnames(cvDat) <- c("df","meanErr","lwr","upr")
+
+library(ggplot2)
+dfs <- plot.cv.lm(cvDat)
+
+
+fit <- lm(wage ~ ns(age,dfs$df.1se),data=Wage)
+newdat <- data.frame(age=seq(from=min(Wage$age),to=max(Wage$age),length=100))
+plotfitWage(fit,Wage,newdat)
+
+summary(lm(wage ~ poly(age,nDf),data=Wage))$coef
+
+```
+
+(b) Fit a step function to predict wage using age, and perform cross- validation to choose the optimal number of cuts. Make a plot of the fit obtained.(3 marks)
+
+```{r}
+nDf=10
+cvDat <- matrix(NA,nrow=nDf,ncol=4)
+Minofage <- min(Wage$age); Maxofage <- max(Wage$age)
+ageMin <- Minofage - 0.001*(Maxofage-Minofage)
+ageMax <- Maxofage + 0.001*(Maxofage-Minofage)
+for(df in 2:nDf) {
+Breaks <- seq(from=ageMin,to=ageMax,length=(df+1))
+res <- cv.lm(wage ~ cut(age,Breaks),Wage,k,seed)
+merr <- res$meanErr;
+sderr <- res$sdErr
+
+cvDat[df,] <- c(df,merr,merr-sderr,merr+sderr)
+}
+colnames(cvDat) <- c("df","meanErr","lwr","upr")
+cvDat <- na.omit(cvDat)
+library(ggplot2)
+dfs <- plot.cv.lm(cvDat)
+
+
+
+Breaks <- seq(from=ageMin,to=ageMax,length=(dfs$df.1se+1))
+fit <- lm(wage ~ cut(age,Breaks),data=Wage)
+new <- data.frame(age=seq(from=min(Wage$age),to=max(Wage$age),length=100))
+
+
+plotfitWage(fit,Wage,new)
+```
